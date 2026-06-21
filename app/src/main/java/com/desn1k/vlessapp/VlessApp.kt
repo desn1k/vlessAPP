@@ -19,7 +19,7 @@ class VlessApp : Application() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val channel = NotificationChannel(
             VPN_NOTIFICATION_CHANNEL_ID,
-            "VLESS VPN",
+            "Vless Checker VPN",
             NotificationManager.IMPORTANCE_LOW
         )
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)

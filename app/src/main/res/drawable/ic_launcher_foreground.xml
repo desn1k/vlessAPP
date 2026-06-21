@@ -4,7 +4,28 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- shield -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M54,24 L78,54 L66,54 L66,84 L42,84 L42,54 L30,54 Z" />
+        android:pathData="M54,18 L78,28 C78,28 79,56 78,64 C76,80 64,90 54,94 C44,90 32,80 30,64 C29,56 30,28 30,28 Z" />
+
+    <!-- inner shield accent -->
+    <path
+        android:fillColor="#0F2027"
+        android:fillAlpha="0.12"
+        android:pathData="M54,24 L73,32 C73,32 74,56 73,63 C71,76 62,85 54,88 C46,85 37,76 35,63 C34,56 35,32 35,32 Z" />
+
+    <!-- checkmark -->
+    <path
+        android:strokeColor="#00C9A7"
+        android:strokeWidth="7"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M41,57 L51,68 L72,42" />
+
+    <!-- signal bars -->
+    <path android:fillColor="#0F2027" android:pathData="M62,78 h5 v8 h-5 Z" />
+    <path android:fillColor="#0F2027" android:pathData="M70,73 h5 v13 h-5 Z" />
+    <path android:fillColor="#0F2027" android:pathData="M78,68 h5 v18 h-5 Z" />
 </vector>

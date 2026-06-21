@@ -119,7 +119,7 @@ class XrayVpnService : VpnService() {
         )
         return NotificationCompat.Builder(this, VlessApp.VPN_NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_lock_lock)
-            .setContentTitle("VLESS VPN")
+            .setContentTitle("Vless Checker")
             .setContentText("Tunnel active")
             .setContentIntent(openAppIntent)
             .setOngoing(true)

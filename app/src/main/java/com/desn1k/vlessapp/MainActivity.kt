@@ -1,5 +1,6 @@
 package com.desn1k.vlessapp
 
+import android.Manifest
 import android.net.VpnService
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -13,6 +14,7 @@ import com.desn1k.vlessapp.core.CoreManager
 import com.desn1k.vlessapp.data.Profile
 import com.desn1k.vlessapp.ui.EditProfileScreen
 import com.desn1k.vlessapp.ui.MainViewModel
+import com.desn1k.vlessapp.ui.OperatorTestScreen
 import com.desn1k.vlessapp.ui.ProfileListScreen
 import com.desn1k.vlessapp.ui.TestScreen
 import com.desn1k.vlessapp.ui.theme.VlessAppTheme
@@ -30,10 +32,14 @@ class MainActivity : ComponentActivity() {
         pendingProfile = null
     }
 
+    private val phoneStatePermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* result observed via SimManager.hasPermission */ }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         CoreManager.ensureInitialized(applicationContext)
         viewModel.vpnPermissionRequester = { profile -> requestVpnAndConnect(profile) }
+        phoneStatePermissionLauncher.launch(Manifest.permission.READ_PHONE_STATE)
 
         intent?.dataString
             ?.takeIf { it.startsWith("vless://") }
@@ -48,7 +54,8 @@ class MainActivity : ComponentActivity() {
                             viewModel = viewModel,
                             onAddProfile = { navController.navigate("edit/new") },
                             onEditProfile = { id -> navController.navigate("edit/$id") },
-                            onOpenTests = { navController.navigate("tests") }
+                            onOpenTests = { navController.navigate("tests") },
+                            onOpenOperators = { navController.navigate("operators") }
                         )
                     }
                     composable("edit/{id}") { backStackEntry ->
@@ -62,6 +69,9 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("tests") {
                         TestScreen(viewModel = viewModel)
+                    }
+                    composable("operators") {
+                        OperatorTestScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
                     }
                 }
             }

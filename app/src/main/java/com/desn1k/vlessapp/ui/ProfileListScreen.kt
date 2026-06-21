@@ -24,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.desn1k.vlessapp.data.Profile
+import com.desn1k.vlessapp.update.GitHubRelease
 import com.desn1k.vlessapp.vpn.ConnectionState
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -40,18 +42,22 @@ fun ProfileListScreen(
     viewModel: MainViewModel,
     onAddProfile: () -> Unit,
     onEditProfile: (Long) -> Unit,
-    onOpenTests: () -> Unit
+    onOpenTests: () -> Unit,
+    onOpenOperators: () -> Unit
 ) {
     val profiles by viewModel.profiles.collectAsState()
     val connection by viewModel.connectionState.collectAsState()
     val selectedId by viewModel.selectedProfileId.collectAsState()
     val importError by viewModel.importError.collectAsState()
+    val updateState by viewModel.updateState.collectAsState()
 
     var showImportDialog by remember { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<Profile?>(null) }
 
+    LaunchedEffect(Unit) { viewModel.checkForUpdate() }
+
     Scaffold(
-        topBar = { TopAppBar(title = { Text("VLESS профили") }) },
+        topBar = { TopAppBar(title = { Text("Vless Checker") }) },
         floatingActionButton = {
             FloatingActionButton(onClick = { showImportDialog = true }) {
                 Icon(Icons.Filled.Add, contentDescription = "Добавить")
@@ -59,7 +65,15 @@ fun ProfileListScreen(
         }
     ) { padding ->
         Column(modifier = Modifier.padding(padding).padding(12.dp)) {
-            StatusCard(connection, onOpenTests)
+            if (updateState.updateAvailable && updateState.release != null) {
+                UpdateBanner(
+                    release = updateState.release!!,
+                    downloadPercent = updateState.downloadPercent,
+                    onDownload = { viewModel.downloadAndInstallUpdate() }
+                )
+            }
+
+            StatusCard(connection, onOpenTests, onOpenOperators)
 
             if (profiles.isEmpty()) {
                 Text("Нет профилей. Нажмите + чтобы вставить vless:// ссылку или создать вручную.")
@@ -115,13 +129,30 @@ fun ProfileListScreen(
 }
 
 @Composable
-private fun StatusCard(connection: ConnectionState.State, onOpenTests: () -> Unit) {
+private fun StatusCard(connection: ConnectionState.State, onOpenTests: () -> Unit, onOpenOperators: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text("Статус: ${connection.status}")
             connection.detail?.let { Text(it) }
-            Button(onClick = onOpenTests, modifier = Modifier.padding(top = 8.dp)) {
-                Text("Проверить соединение")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+                Button(onClick = onOpenTests) { Text("Проверить соединение") }
+                Button(onClick = onOpenOperators) { Text("По операторам") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun UpdateBanner(release: GitHubRelease, downloadPercent: Int?, onDownload: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text("Доступно обновление ${release.tagName}")
+            when {
+                downloadPercent == null -> Button(onClick = onDownload, modifier = Modifier.padding(top = 8.dp)) {
+                    Text("Скачать и установить")
+                }
+                downloadPercent < 100 -> Text("Загрузка: $downloadPercent%")
+                else -> Text("Загружено, запуск установки…")
             }
         }
     }

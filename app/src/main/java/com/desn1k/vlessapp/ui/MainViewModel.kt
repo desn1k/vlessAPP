@@ -3,11 +3,19 @@ package com.desn1k.vlessapp.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.desn1k.vlessapp.BuildConfig
 import com.desn1k.vlessapp.VlessApp
 import com.desn1k.vlessapp.core.CoreManager
 import com.desn1k.vlessapp.data.Profile
 import com.desn1k.vlessapp.data.ProfileRepository
+import com.desn1k.vlessapp.sim.MultiSimTester
+import com.desn1k.vlessapp.sim.OperatorTestResult
+import com.desn1k.vlessapp.sim.SimInfo
+import com.desn1k.vlessapp.sim.SimManager
 import com.desn1k.vlessapp.test.ConnectivityTester
+import com.desn1k.vlessapp.update.ApkInstaller
+import com.desn1k.vlessapp.update.GitHubRelease
+import com.desn1k.vlessapp.update.UpdateChecker
 import com.desn1k.vlessapp.vless.VlessLink
 import com.desn1k.vlessapp.vless.XrayConfigFactory
 import com.desn1k.vlessapp.vpn.ConnectionState
@@ -17,6 +25,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.io.File
 
 data class TestReport(
     val probeMs: Long? = null,
@@ -24,6 +33,21 @@ data class TestReport(
     val pings: List<ConnectivityTester.PingResult> = emptyList(),
     val running: Boolean = false,
     val error: String? = null
+)
+
+data class UpdateState(
+    val checking: Boolean = false,
+    val release: GitHubRelease? = null,
+    val updateAvailable: Boolean = false,
+    val downloadPercent: Int? = null,
+    val downloadedFile: File? = null,
+    val error: String? = null
+)
+
+data class OperatorTestState(
+    val running: Boolean = false,
+    val results: List<OperatorTestResult> = emptyList(),
+    val noSimsFound: Boolean = false
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -43,6 +67,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _importError = MutableStateFlow<String?>(null)
     val importError: StateFlow<String?> = _importError
+
+    private val _updateState = MutableStateFlow(UpdateState())
+    val updateState: StateFlow<UpdateState> = _updateState
+
+    private val _operatorTestState = MutableStateFlow(OperatorTestState())
+    val operatorTestState: StateFlow<OperatorTestState> = _operatorTestState
+
+    private val _sims = MutableStateFlow<List<SimInfo>>(emptyList())
+    val sims: StateFlow<List<SimInfo>> = _sims
 
     /**
      * Set by MainActivity to route connection requests through VpnService.prepare() before
@@ -108,6 +141,59 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val sites = ConnectivityTester.checkSites()
             val pings = ConnectivityTester.pingAll()
             _testReport.value = TestReport(sites = sites, pings = pings, running = false)
+        }
+    }
+
+    fun loadSims() {
+        _sims.value = SimManager.listActiveSims(getApplication())
+    }
+
+    /** Runs site/ping checks pinned to each active SIM's cellular network, plus a TCP ping to the active profile's server. */
+    fun runOperatorTest() {
+        viewModelScope.launch {
+            _operatorTestState.value = OperatorTestState(running = true)
+            val app: android.app.Application = getApplication()
+            val sims = SimManager.listActiveSims(app)
+            if (sims.isEmpty()) {
+                _operatorTestState.value = OperatorTestState(running = false, noSimsFound = true)
+                return@launch
+            }
+            val profile = _selectedProfileId.value?.let { repository.getById(it) }
+            val results = MultiSimTester.runForAllSims(app, profile)
+            _operatorTestState.value = OperatorTestState(running = false, results = results)
+        }
+    }
+
+    fun checkForUpdate() {
+        viewModelScope.launch {
+            _updateState.value = _updateState.value.copy(checking = true, error = null)
+            val release = UpdateChecker.fetchLatestRelease()
+            if (release == null) {
+                _updateState.value = UpdateState(checking = false, error = "Could not check for updates")
+                return@launch
+            }
+            val isNewer = UpdateChecker.isNewer(release.tagName, BuildConfig.VERSION_NAME)
+            _updateState.value = UpdateState(checking = false, release = release, updateAvailable = isNewer)
+        }
+    }
+
+    fun downloadAndInstallUpdate() {
+        val release = _updateState.value.release ?: return
+        val apkUrl = release.apkDownloadUrl ?: return
+        viewModelScope.launch {
+            _updateState.value = _updateState.value.copy(downloadPercent = 0)
+            ApkInstaller.download(getApplication(), apkUrl) { progress ->
+                when (progress) {
+                    is ApkInstaller.DownloadProgress.Progress ->
+                        _updateState.value = _updateState.value.copy(downloadPercent = progress.percent)
+                    is ApkInstaller.DownloadProgress.Done -> {
+                        _updateState.value = _updateState.value.copy(downloadPercent = 100, downloadedFile = progress.file)
+                        ApkInstaller.install(getApplication(), progress.file)
+                    }
+                    is ApkInstaller.DownloadProgress.Failed ->
+                        _updateState.value = _updateState.value.copy(downloadPercent = null, error = progress.message)
+                }
+            }
         }
     }
 }
