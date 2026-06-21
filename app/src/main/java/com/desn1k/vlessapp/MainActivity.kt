@@ -24,7 +24,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -42,7 +41,6 @@ import com.desn1k.vlessapp.ui.theme.VlessAppTheme
 import com.desn1k.vlessapp.vpn.XrayVpnService
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
-import kotlinx.coroutines.launch
 
 private data class BottomTab(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
 
@@ -81,28 +79,15 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private val exportBackupLauncher =
-        registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-            if (uri == null) return@registerForActivityResult
-            lifecycleScope.launch {
-                val json = viewModel.exportBackupAsync()
-                contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
-            }
-        }
-
-    private val importBackupLauncher =
-        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-            if (uri == null) return@registerForActivityResult
-            val json = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
-            json?.let { viewModel.importBackupJson(it) }
-        }
-
     private fun launchQrScanner() {
         qrScanLauncher.launch(
             ScanOptions()
                 .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
                 .setPrompt("Сканируйте QR-код профиля")
                 .setBeepEnabled(false)
+                // zxing's CaptureActivity shows a back/close arrow in its own top bar by default;
+                // explicitly request it here in case a stale Theme override on the device suppresses it.
+                .setOrientationLocked(false)
         )
     }
 
@@ -114,16 +99,9 @@ class MainActivity : ComponentActivity() {
         if (granted) launchQrScanner() else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
     }
 
-    fun requestExportBackup() {
-        exportBackupLauncher.launch("vless-checker-backup.json")
-    }
-
-    fun requestImportBackup() {
-        importBackupLauncher.launch(arrayOf("application/json"))
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        androidx.activity.enableEdgeToEdge()
         CoreManager.ensureInitialized(applicationContext)
         viewModel.vpnPermissionRequester = { profile -> requestVpnAndConnect(profile) }
         phoneStatePermissionLauncher.launch(Manifest.permission.READ_PHONE_STATE)
@@ -199,11 +177,7 @@ class MainActivity : ComponentActivity() {
                             TestsScreen(viewModel = viewModel)
                         }
                         composable("settings") {
-                            SettingsScreen(
-                                viewModel = viewModel,
-                                onExportBackup = { requestExportBackup() },
-                                onImportBackup = { requestImportBackup() }
-                            )
+                            SettingsScreen(viewModel = viewModel)
                         }
                     }
                 }

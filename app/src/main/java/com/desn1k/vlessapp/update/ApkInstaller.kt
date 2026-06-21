@@ -22,9 +22,29 @@ object ApkInstaller {
         data class Failed(val message: String) : DownloadProgress()
     }
 
+    /** Names the cached file after the release tag so switching versions doesn't reuse a stale cache. */
+    private fun cacheFileFor(context: Context, url: String): File =
+        File(context.cacheDir, "vless-checker-update-${url.hashCode()}.apk")
+
     suspend fun download(context: Context, url: String, onProgress: (DownloadProgress) -> Unit) {
         withContext(Dispatchers.IO) {
             try {
+                val outFile = cacheFileFor(context, url)
+
+                val headConnection = URL(url).openConnection() as HttpURLConnection
+                headConnection.instanceFollowRedirects = true
+                headConnection.requestMethod = "HEAD"
+                headConnection.connectTimeout = 10000
+                headConnection.readTimeout = 15000
+                headConnection.connect()
+                val expectedLength = headConnection.contentLength
+                headConnection.disconnect()
+
+                if (expectedLength > 0 && outFile.exists() && outFile.length() == expectedLength.toLong()) {
+                    onProgress(DownloadProgress.Done(outFile))
+                    return@withContext
+                }
+
                 val connection = URL(url).openConnection() as HttpURLConnection
                 connection.instanceFollowRedirects = true
                 connection.connectTimeout = 10000
@@ -32,8 +52,6 @@ object ApkInstaller {
                 connection.connect()
 
                 val total = connection.contentLength
-                val outFile = File(context.cacheDir, "vless-checker-update.apk")
-
                 connection.inputStream.use { input ->
                     outFile.outputStream().use { output ->
                         val buffer = ByteArray(8 * 1024)

@@ -7,7 +7,6 @@ import com.desn1k.vlessapp.BuildConfig
 import com.desn1k.vlessapp.VlessApp
 import com.desn1k.vlessapp.core.CoreManager
 import com.desn1k.vlessapp.data.Profile
-import com.desn1k.vlessapp.data.ProfileBackup
 import com.desn1k.vlessapp.data.ProfileRepository
 import com.desn1k.vlessapp.prefs.AppPreferences
 import com.desn1k.vlessapp.prefs.ThemeMode
@@ -102,9 +101,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _subscriptionError = MutableStateFlow<String?>(null)
     val subscriptionError: StateFlow<String?> = _subscriptionError
 
-    private val _backupMessage = MutableStateFlow<String?>(null)
-    val backupMessage: StateFlow<String?> = _backupMessage
-
     fun setThemeMode(mode: ThemeMode) {
         AppPreferences.setThemeMode(getApplication(), mode)
         _themeMode.value = mode
@@ -132,20 +128,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun removeSubscription(url: String) {
         AppPreferences.removeSubscription(getApplication(), url)
         _subscriptions.value = AppPreferences.getSubscriptions(getApplication()).toList()
-    }
-
-    suspend fun exportBackupAsync(): String = ProfileBackup.toJson(repository.getAllOnce())
-
-    fun importBackupJson(json: String) {
-        viewModelScope.launch {
-            try {
-                val imported = ProfileBackup.fromJson(json)
-                imported.forEach { repository.saveDeduped(it) }
-                _backupMessage.value = "Импортировано профилей: ${imported.size}"
-            } catch (t: Throwable) {
-                _backupMessage.value = "Не удалось импортировать: ${t.message}"
-            }
-        }
     }
 
     /**

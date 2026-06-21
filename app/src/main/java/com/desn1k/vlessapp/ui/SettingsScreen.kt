@@ -32,16 +32,11 @@ import com.desn1k.vlessapp.update.GitHubRelease
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(
-    viewModel: MainViewModel,
-    onExportBackup: () -> Unit,
-    onImportBackup: () -> Unit
-) {
+fun SettingsScreen(viewModel: MainViewModel) {
     val updateState by viewModel.updateState.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
     val subscriptions by viewModel.subscriptions.collectAsState()
     val subscriptionError by viewModel.subscriptionError.collectAsState()
-    val backupMessage by viewModel.backupMessage.collectAsState()
 
     Scaffold(topBar = { TopAppBar(title = { Text("Настройки") }) }) { padding ->
         Column(modifier = Modifier.padding(padding).padding(12.dp)) {
@@ -117,17 +112,6 @@ fun SettingsScreen(
                         }
                         subscriptionError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                     }
-                }
-            }
-
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Text("Резервная копия", style = MaterialTheme.typography.titleSmall)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-                        Button(onClick = onExportBackup) { Text("Экспорт") }
-                        Button(onClick = onImportBackup) { Text("Импорт") }
-                    }
-                    backupMessage?.let { Text(it, modifier = Modifier.padding(top = 8.dp)) }
                 }
             }
         }
