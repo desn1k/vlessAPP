@@ -1,7 +1,6 @@
 package com.desn1k.vlessapp.vless
 
 import com.desn1k.vlessapp.data.Profile
-import java.net.URI
 import java.net.URLDecoder
 import java.net.URLEncoder
 
@@ -10,20 +9,35 @@ import java.net.URLEncoder
  *
  *   vless://<uuid>@<host>:<port>?encryption=none&security=reality&sni=...&fp=...
  *           &pbk=...&sid=...&spx=...&flow=...&type=ws&path=...&host=...&serviceName=...#remark
+ *
+ * Parsed by hand (not via java.net.URI) because real-world share links commonly put raw,
+ * non-percent-encoded Unicode (Cyrillic remarks, flag emoji) in the fragment, which java.net.URI
+ * rejects with a URISyntaxException.
  */
 object VlessLink {
 
     fun parse(rawLink: String): Profile {
         val link = rawLink.trim()
-        require(link.startsWith("vless://")) { "Not a vless:// link" }
+        require(link.startsWith("vless://", ignoreCase = true)) { "Not a vless:// link" }
 
-        val uri = URI(link)
-        val uuid = uri.userInfo ?: error("Missing UUID in vless link")
-        val host = uri.host ?: error("Missing host in vless link")
-        val port = if (uri.port != -1) uri.port else 443
+        var rest = link.substring("vless://".length)
 
-        val params = parseQuery(uri.rawQuery.orEmpty())
-        val remark = uri.rawFragment?.let { decode(it) }?.takeIf { it.isNotBlank() } ?: "$host:$port"
+        val rawRemark = rest.substringAfter('#', "")
+        rest = rest.substringBefore('#')
+
+        val rawQuery = rest.substringAfter('?', "")
+        rest = rest.substringBefore('?')
+
+        val atIdx = rest.indexOf('@')
+        require(atIdx >= 0) { "Missing UUID in vless link" }
+        val uuid = rest.substring(0, atIdx).takeIf { it.isNotBlank() } ?: error("Missing UUID in vless link")
+        val hostPort = rest.substring(atIdx + 1)
+        require(hostPort.isNotBlank()) { "Missing host in vless link" }
+
+        val (host, port) = parseHostPort(hostPort)
+
+        val params = parseQuery(rawQuery)
+        val remark = decodeLoose(rawRemark).takeIf { it.isNotBlank() } ?: "$host:$port"
 
         return Profile(
             remark = remark,
@@ -45,6 +59,23 @@ object VlessLink {
             wsHost = params["host"].orEmpty(),
             grpcServiceName = params["serviceName"].orEmpty()
         )
+    }
+
+    /** Splits "host:port" (or "[ipv6]:port") without validating against RFC 3986. */
+    private fun parseHostPort(hostPort: String): Pair<String, Int> {
+        val (host, portPart) = if (hostPort.startsWith("[")) {
+            val end = hostPort.indexOf(']')
+            require(end > 1) { "Malformed IPv6 host in vless link" }
+            val h = hostPort.substring(1, end)
+            val p = hostPort.substring(end + 1).removePrefix(":")
+            h to p
+        } else {
+            val idx = hostPort.lastIndexOf(':')
+            if (idx >= 0) hostPort.substring(0, idx) to hostPort.substring(idx + 1) else hostPort to ""
+        }
+        require(host.isNotBlank()) { "Missing host in vless link" }
+        val port = if (portPart.isBlank()) 443 else portPart.toIntOrNull() ?: error("Invalid port in vless link: $portPart")
+        return host to port
     }
 
     fun toLink(profile: Profile): String {
@@ -74,12 +105,15 @@ object VlessLink {
         return rawQuery.split("&").mapNotNull { pair ->
             val idx = pair.indexOf('=')
             if (idx < 0) return@mapNotNull null
-            val key = decode(pair.substring(0, idx))
-            val value = decode(pair.substring(idx + 1))
+            val key = decodeLoose(pair.substring(0, idx))
+            val value = decodeLoose(pair.substring(idx + 1))
             key to value
         }.toMap()
     }
 
-    private fun decode(value: String) = URLDecoder.decode(value, "UTF-8")
+    /** Percent-decodes if possible, otherwise returns the input as-is (raw Unicode is common in remarks). */
+    private fun decodeLoose(value: String): String =
+        runCatching { URLDecoder.decode(value, "UTF-8") }.getOrDefault(value)
+
     private fun encode(value: String) = URLEncoder.encode(value, "UTF-8")
 }
