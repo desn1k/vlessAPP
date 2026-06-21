@@ -12,6 +12,7 @@ import com.desn1k.vlessapp.sim.MultiSimTester
 import com.desn1k.vlessapp.sim.OperatorTestResult
 import com.desn1k.vlessapp.sim.SimInfo
 import com.desn1k.vlessapp.sim.SimManager
+import com.desn1k.vlessapp.sim.WifiNetworkBinder
 import com.desn1k.vlessapp.test.ConnectivityTester
 import com.desn1k.vlessapp.update.ApkInstaller
 import com.desn1k.vlessapp.update.GitHubRelease
@@ -50,6 +51,14 @@ data class OperatorTestState(
     val noSimsFound: Boolean = false
 )
 
+data class WifiTestState(
+    val running: Boolean = false,
+    val networkAcquired: Boolean? = null,
+    val serverPing: ConnectivityTester.PingResult? = null,
+    val sites: List<ConnectivityTester.SiteResult> = emptyList(),
+    val pings: List<ConnectivityTester.PingResult> = emptyList()
+)
+
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = ProfileRepository((application as VlessApp).database.profileDao())
@@ -76,6 +85,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _sims = MutableStateFlow<List<SimInfo>>(emptyList())
     val sims: StateFlow<List<SimInfo>> = _sims
+
+    private val _wifiTestState = MutableStateFlow(WifiTestState())
+    val wifiTestState: StateFlow<WifiTestState> = _wifiTestState
 
     /**
      * Set by MainActivity to route connection requests through VpnService.prepare() before
@@ -161,6 +173,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val profile = _selectedProfileId.value?.let { repository.getById(it) }
             val results = MultiSimTester.runForAllSims(app, profile)
             _operatorTestState.value = OperatorTestState(running = false, results = results)
+        }
+    }
+
+    /** Runs the same reachability checks pinned explicitly to the active Wi-Fi network. */
+    fun runWifiTest() {
+        viewModelScope.launch {
+            _wifiTestState.value = WifiTestState(running = true)
+            val app: android.app.Application = getApplication()
+            val network = WifiNetworkBinder.requestWifiNetwork(app)
+            if (network == null) {
+                _wifiTestState.value = WifiTestState(running = false, networkAcquired = false)
+                return@launch
+            }
+            val profile = _selectedProfileId.value?.let { repository.getById(it) }
+            val serverPing = profile?.let { ConnectivityTester.tcpPing(it.address, it.port, network) }
+            val sites = ConnectivityTester.checkSites(network = network)
+            val pings = ConnectivityTester.pingAll(network = network)
+            _wifiTestState.value = WifiTestState(
+                running = false,
+                networkAcquired = true,
+                serverPing = serverPing,
+                sites = sites,
+                pings = pings
+            )
         }
     }
 
