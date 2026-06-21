@@ -63,18 +63,19 @@ object VlessLink {
 
     /** Splits "host:port" (or "[ipv6]:port") without validating against RFC 3986. */
     private fun parseHostPort(hostPort: String): Pair<String, Int> {
-        if (hostPort.startsWith("[")) {
+        val (host, portPart) = if (hostPort.startsWith("[")) {
             val end = hostPort.indexOf(']')
-            val host = hostPort.substring(1, end.coerceAtLeast(1))
-            val portPart = hostPort.substring((end + 1).coerceAtMost(hostPort.length)).removePrefix(":")
-            return host to (portPart.toIntOrNull() ?: 443)
-        }
-        val idx = hostPort.lastIndexOf(':')
-        return if (idx >= 0) {
-            hostPort.substring(0, idx) to (hostPort.substring(idx + 1).toIntOrNull() ?: 443)
+            require(end > 1) { "Malformed IPv6 host in vless link" }
+            val h = hostPort.substring(1, end)
+            val p = hostPort.substring(end + 1).removePrefix(":")
+            h to p
         } else {
-            hostPort to 443
+            val idx = hostPort.lastIndexOf(':')
+            if (idx >= 0) hostPort.substring(0, idx) to hostPort.substring(idx + 1) else hostPort to ""
         }
+        require(host.isNotBlank()) { "Missing host in vless link" }
+        val port = if (portPart.isBlank()) 443 else portPart.toIntOrNull() ?: error("Invalid port in vless link: $portPart")
+        return host to port
     }
 
     fun toLink(profile: Profile): String {
