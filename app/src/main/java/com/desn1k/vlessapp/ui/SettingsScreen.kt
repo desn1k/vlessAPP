@@ -5,19 +5,19 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -40,13 +40,6 @@ fun SettingsScreen(viewModel: MainViewModel) {
 
     Scaffold(topBar = { TopAppBar(title = { Text("Настройки") }) }) { padding ->
         Column(modifier = Modifier.padding(padding).padding(12.dp)) {
-            Card(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Text("Vless Checker")
-                    Text("Версия: ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall)
-                }
-            }
-
             Card(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
@@ -61,7 +54,11 @@ fun SettingsScreen(viewModel: MainViewModel) {
                         updateState.error != null -> Text("Не удалось проверить обновления: ${updateState.error}")
                         else -> Text("У вас последняя версия приложения.")
                     }
-                    Button(onClick = { viewModel.checkForUpdate() }, modifier = Modifier.padding(top = 8.dp)) {
+                    Button(
+                        onClick = { viewModel.checkForUpdate() },
+                        enabled = !updateState.checking,
+                        modifier = Modifier.padding(top = 8.dp)
+                    ) {
                         Text("Проверить обновления")
                     }
                 }
@@ -70,18 +67,28 @@ fun SettingsScreen(viewModel: MainViewModel) {
             Card(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Text("Тема приложения", style = MaterialTheme.typography.titleSmall)
-                    SingleChoiceSegmentedButtonRow(modifier = Modifier.padding(top = 8.dp)) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(top = 8.dp)
+                    ) {
                         val options = listOf(
                             ThemeMode.SYSTEM to "Системная",
                             ThemeMode.LIGHT to "Светлая",
                             ThemeMode.DARK to "Тёмная"
                         )
-                        options.forEachIndexed { index, (mode, label) ->
-                            SegmentedButton(
-                                selected = themeMode == mode,
-                                onClick = { viewModel.setThemeMode(mode) },
-                                shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size)
-                            ) { Text(label) }
+                        options.forEach { (mode, label) ->
+                            val selected = themeMode == mode
+                            if (selected) {
+                                FilledTonalButton(
+                                    onClick = { viewModel.setThemeMode(mode) },
+                                    shape = RoundedCornerShape(8.dp)
+                                ) { Text(label) }
+                            } else {
+                                OutlinedButton(
+                                    onClick = { viewModel.setThemeMode(mode) },
+                                    shape = RoundedCornerShape(8.dp)
+                                ) { Text(label) }
+                            }
                         }
                     }
                 }
@@ -114,6 +121,13 @@ fun SettingsScreen(viewModel: MainViewModel) {
                     }
                 }
             }
+
+            Text(
+                "Vless Checker · ${BuildConfig.VERSION_NAME}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp)
+            )
         }
     }
 }

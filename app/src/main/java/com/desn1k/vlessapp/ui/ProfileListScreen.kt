@@ -190,11 +190,18 @@ private fun SwipeToDeleteRow(onDelete: () -> Unit, content: @Composable () -> Un
     )
 }
 
+private fun statusLabel(status: ConnectionState.Status): String = when (status) {
+    ConnectionState.Status.DISCONNECTED -> "Не подключен"
+    ConnectionState.Status.CONNECTING -> "Подключение…"
+    ConnectionState.Status.CONNECTED -> "Подключен"
+    ConnectionState.Status.ERROR -> "Ошибка"
+}
+
 @Composable
 private fun StatusCard(connection: ConnectionState.State) {
     Card(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Text("Статус: ${connection.status}")
+            Text("Статус: ${statusLabel(connection.status)}")
             connection.detail?.let { Text(it) }
         }
     }

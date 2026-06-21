@@ -245,7 +245,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private var lastUpdateCheckAtMs = 0L
+
+    /** Guards against hammering the GitHub API (and tripping its rate limit) from repeated taps. */
     fun checkForUpdate() {
+        val now = System.currentTimeMillis()
+        if (_updateState.value.checking || now - lastUpdateCheckAtMs < UPDATE_CHECK_COOLDOWN_MS) return
+        lastUpdateCheckAtMs = now
         viewModelScope.launch {
             _updateState.value = _updateState.value.copy(checking = true, error = null)
             val release = UpdateChecker.fetchLatestRelease()
@@ -256,6 +262,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val isNewer = UpdateChecker.isNewer(release.tagName, BuildConfig.VERSION_NAME)
             _updateState.value = UpdateState(checking = false, release = release, updateAvailable = isNewer)
         }
+    }
+
+    private companion object {
+        const val UPDATE_CHECK_COOLDOWN_MS = 15_000L
     }
 
     fun downloadAndInstallUpdate() {
