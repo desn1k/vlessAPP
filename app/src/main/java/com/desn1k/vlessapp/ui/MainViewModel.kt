@@ -256,6 +256,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _updateState.value = _updateState.value.copy(checking = true, error = null)
             val release = UpdateChecker.fetchLatestRelease()
             if (release == null) {
+                lastUpdateCheckAtMs = 0L
                 _updateState.value = UpdateState(checking = false, error = "Could not check for updates")
                 return@launch
             }
