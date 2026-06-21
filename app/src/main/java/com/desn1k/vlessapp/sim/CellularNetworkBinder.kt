@@ -5,8 +5,8 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.net.TelephonyNetworkSpecifier
 import android.os.Build
-import android.telephony.TelephonyNetworkSpecifier
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
