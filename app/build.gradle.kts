@@ -13,8 +13,8 @@ android {
         applicationId = "com.desn1k.vlessapp"
         minSdk = 24
         targetSdk = 34
-        versionCode = 4
-        versionName = "0.4.0"
+        versionCode = 5
+        versionName = "0.4.1"
     }
 
     // Committed keystore so every CI build (and every dev machine) signs debug APKs with the
