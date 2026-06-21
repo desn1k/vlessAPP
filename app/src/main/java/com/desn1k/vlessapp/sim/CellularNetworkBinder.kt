@@ -5,6 +5,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.net.TelephonyNetworkSpecifier
 import android.os.Build
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
@@ -30,7 +31,7 @@ object CellularNetworkBinder {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             requestBuilder.setNetworkSpecifier(
-                android.telephony.TelephonyNetworkSpecifier.Builder()
+                TelephonyNetworkSpecifier.Builder()
                     .setSubscriptionId(subscriptionId)
                     .build()
             )

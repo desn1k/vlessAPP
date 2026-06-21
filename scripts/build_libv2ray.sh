@@ -12,6 +12,7 @@ set -euo pipefail
 REPO_URL="https://github.com/2dust/AndroidLibXrayLite.git"
 WORKDIR="$(mktemp -d)"
 ANDROID_API_LEVEL=24
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 cleanup() { rm -rf "$WORKDIR"; }
 trap cleanup EXIT
@@ -39,7 +40,6 @@ gomobile bind -v -androidapi "$ANDROID_API_LEVEL" -trimpath \
   -ldflags='-s -w -buildid= -checklinkname=0' \
   -o libv2ray.aar ./
 
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 mkdir -p "$PROJECT_ROOT/app/libs"
 cp libv2ray.aar "$PROJECT_ROOT/app/libs/libv2ray.aar"
 
