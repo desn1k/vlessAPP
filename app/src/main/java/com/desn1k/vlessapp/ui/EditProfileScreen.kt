@@ -7,6 +7,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -44,6 +45,7 @@ fun EditProfileScreen(
     var grpcServiceName by remember { mutableStateOf("") }
     var tag by remember { mutableStateOf("") }
     var existingId by remember { mutableStateOf(0L) }
+    var validationError by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(profileId) {
         if (profileId != null) {
@@ -91,8 +93,16 @@ fun EditProfileScreen(
             Field("gRPC serviceName", grpcServiceName) { grpcServiceName = it }
             Field("Тег/группа", tag) { tag = it }
 
+            validationError?.let {
+                Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp))
+            }
+
             Button(
                 onClick = {
+                    if (address.isBlank() || uuid.isBlank()) {
+                        validationError = "Укажите адрес сервера и UUID"
+                        return@Button
+                    }
                     viewModel.saveProfile(
                         Profile(
                             id = existingId,
