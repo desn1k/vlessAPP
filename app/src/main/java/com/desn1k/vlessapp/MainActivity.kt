@@ -24,6 +24,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -39,6 +40,9 @@ import com.desn1k.vlessapp.ui.SettingsScreen
 import com.desn1k.vlessapp.ui.TestsScreen
 import com.desn1k.vlessapp.ui.theme.VlessAppTheme
 import com.desn1k.vlessapp.vpn.XrayVpnService
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
+import kotlinx.coroutines.launch
 
 private data class BottomTab(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
 
@@ -63,6 +67,52 @@ class MainActivity : ComponentActivity() {
     private val phoneStatePermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* result observed via SimManager.hasPermission */ }
 
+    private val cameraPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) launchQrScanner()
+        }
+
+    private val qrScanLauncher = registerForActivityResult(ScanContract()) { result ->
+        result.contents?.takeIf { it.startsWith("vless://") }?.let { viewModel.importLink(it) }
+    }
+
+    private val exportBackupLauncher =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+            if (uri == null) return@registerForActivityResult
+            lifecycleScope.launch {
+                val json = viewModel.exportBackupAsync()
+                contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
+            }
+        }
+
+    private val importBackupLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri == null) return@registerForActivityResult
+            val json = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+            json?.let { viewModel.importBackupJson(it) }
+        }
+
+    private fun launchQrScanner() {
+        qrScanLauncher.launch(
+            ScanOptions()
+                .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                .setPrompt("Сканируйте QR-код профиля")
+                .setBeepEnabled(false)
+        )
+    }
+
+    fun requestQrScan() {
+        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+    }
+
+    fun requestExportBackup() {
+        exportBackupLauncher.launch("vless-checker-backup.json")
+    }
+
+    fun requestImportBackup() {
+        importBackupLauncher.launch(arrayOf("application/json"))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         CoreManager.ensureInitialized(applicationContext)
@@ -75,7 +125,8 @@ class MainActivity : ComponentActivity() {
             ?.let { link -> runCatching { viewModel.importLink(link) } }
 
         setContent {
-            VlessAppTheme {
+            val themeMode by viewModel.themeMode.collectAsState()
+            VlessAppTheme(themeMode = themeMode) {
                 val navController = rememberNavController()
                 val backStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = backStackEntry?.destination?.hierarchy?.firstOrNull()?.route
@@ -122,7 +173,8 @@ class MainActivity : ComponentActivity() {
                             ProfileListScreen(
                                 viewModel = viewModel,
                                 onAddProfile = { navController.navigate("edit/new") },
-                                onEditProfile = { id -> navController.navigate("edit/$id") }
+                                onEditProfile = { id -> navController.navigate("edit/$id") },
+                                onScanQr = { requestQrScan() }
                             )
                         }
                         composable("edit/{id}") { backStackEntry ->
@@ -138,7 +190,11 @@ class MainActivity : ComponentActivity() {
                             TestsScreen(viewModel = viewModel)
                         }
                         composable("settings") {
-                            SettingsScreen(viewModel = viewModel)
+                            SettingsScreen(
+                                viewModel = viewModel,
+                                onExportBackup = { requestExportBackup() },
+                                onImportBackup = { requestImportBackup() }
+                            )
                         }
                     }
                 }

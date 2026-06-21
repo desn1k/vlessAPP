@@ -27,4 +27,10 @@ interface ProfileDao {
 
     @Query("UPDATE profiles SET lastLatencyMs = :latencyMs, lastCheckedAt = :checkedAt WHERE id = :id")
     suspend fun updateLatency(id: Long, latencyMs: Long, checkedAt: Long)
+
+    @Query("SELECT * FROM profiles WHERE address = :address AND port = :port AND uuid = :uuid LIMIT 1")
+    suspend fun findByKey(address: String, port: Int, uuid: String): Profile?
+
+    @Query("SELECT * FROM profiles")
+    suspend fun getAllOnce(): List<Profile>
 }

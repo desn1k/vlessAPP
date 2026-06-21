@@ -1,34 +1,46 @@
 package com.desn1k.vlessapp.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.DismissDirection
+import androidx.compose.material3.DismissValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SwipeToDismiss
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDismissState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.desn1k.vlessapp.data.Profile
 import com.desn1k.vlessapp.vpn.ConnectionState
@@ -38,7 +50,8 @@ import com.desn1k.vlessapp.vpn.ConnectionState
 fun ProfileListScreen(
     viewModel: MainViewModel,
     onAddProfile: () -> Unit,
-    onEditProfile: (Long) -> Unit
+    onEditProfile: (Long) -> Unit,
+    onScanQr: () -> Unit
 ) {
     val profiles by viewModel.profiles.collectAsState()
     val connection by viewModel.connectionState.collectAsState()
@@ -47,12 +60,24 @@ fun ProfileListScreen(
 
     var showImportDialog by remember { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<Profile?>(null) }
+    var query by remember { mutableStateOf("") }
+
+    val filtered = profiles.filter {
+        query.isBlank() ||
+            it.remark.contains(query, ignoreCase = true) ||
+            it.address.contains(query, ignoreCase = true) ||
+            it.tag.contains(query, ignoreCase = true)
+    }
+    val grouped = filtered.groupBy { it.tag.ifBlank { "Без группы" } }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Vless Checker") },
                 actions = {
+                    IconButton(onClick = onScanQr) {
+                        Icon(Icons.Filled.QrCodeScanner, contentDescription = "Сканировать QR")
+                    }
                     IconButton(onClick = { showImportDialog = true }) {
                         Icon(Icons.Filled.Add, contentDescription = "Добавить")
                     }
@@ -63,23 +88,41 @@ fun ProfileListScreen(
         Column(modifier = Modifier.padding(padding).padding(12.dp)) {
             StatusCard(connection)
 
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                label = { Text("Поиск") },
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+            )
+
             if (profiles.isEmpty()) {
                 Text("Нет профилей. Нажмите + чтобы вставить vless:// ссылку или создать вручную.")
             }
 
             LazyColumn {
-                items(profiles, key = { it.id }) { profile ->
-                    ProfileRow(
-                        profile = profile,
-                        isSelected = profile.id == selectedId,
-                        isConnected = profile.id == selectedId && connection.status == ConnectionState.Status.CONNECTED,
-                        isConnecting = profile.id == selectedId && connection.status == ConnectionState.Status.CONNECTING,
-                        onConnect = { viewModel.connect(profile) },
-                        onDisconnect = { viewModel.disconnect() },
-                        onTest = { viewModel.quickProbe(profile) },
-                        onEdit = { onEditProfile(profile.id) },
-                        onDelete = { pendingDelete = profile }
-                    )
+                grouped.forEach { (group, groupProfiles) ->
+                    item(key = "header_$group") {
+                        Text(
+                            group,
+                            style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
+                            modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                        )
+                    }
+                    items(groupProfiles, key = { it.id }) { profile ->
+                        SwipeToDeleteRow(onDelete = { pendingDelete = profile }) {
+                            ProfileRow(
+                                profile = profile,
+                                isSelected = profile.id == selectedId,
+                                isConnected = profile.id == selectedId && connection.status == ConnectionState.Status.CONNECTED,
+                                isConnecting = profile.id == selectedId && connection.status == ConnectionState.Status.CONNECTING,
+                                onConnect = { viewModel.connect(profile) },
+                                onDisconnect = { viewModel.disconnect() },
+                                onTest = { viewModel.quickProbe(profile) },
+                                onEdit = { onEditProfile(profile.id) },
+                                onDelete = { pendingDelete = profile }
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -95,6 +138,10 @@ fun ProfileListScreen(
             },
             onImport = { link ->
                 viewModel.importLink(link)
+                showImportDialog = false
+            },
+            onImportSubscription = { url ->
+                viewModel.importSubscription(url)
                 showImportDialog = false
             }
         )
@@ -114,6 +161,34 @@ fun ProfileListScreen(
             dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("Отмена") } }
         )
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeToDeleteRow(onDelete: () -> Unit, content: @Composable () -> Unit) {
+    val dismissState = rememberDismissState(
+        confirmValueChange = {
+            if (it == DismissValue.DismissedToStart || it == DismissValue.DismissedToEnd) {
+                onDelete()
+            }
+            false
+        }
+    )
+    SwipeToDismiss(
+        state = dismissState,
+        directions = setOf(DismissDirection.EndToStart),
+        background = {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFFFFC1C1)),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.padding(end = 20.dp))
+            }
+        },
+        dismissContent = { content() }
+    )
 }
 
 @Composable
@@ -140,7 +215,17 @@ private fun ProfileRow(
 ) {
     Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Text(profile.remark)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .background(
+                            color = if (isConnected) Color(0xFF34C759) else Color(0xFFB0B6BF),
+                            shape = CircleShape
+                        )
+                )
+                Text(profile.remark, modifier = Modifier.padding(start = 8.dp))
+            }
             Text("${profile.address}:${profile.port}  ·  ${profile.network}/${profile.security}")
             if (profile.lastLatencyMs >= 0) {
                 Text("Последняя проверка: ${profile.lastLatencyMs} мс")
@@ -166,26 +251,33 @@ private fun ImportLinkDialog(
     error: String?,
     onDismiss: () -> Unit,
     onCreateManually: () -> Unit,
-    onImport: (String) -> Unit
+    onImport: (String) -> Unit,
+    onImportSubscription: (String) -> Unit
 ) {
     var text by remember { mutableStateOf("") }
+    var subscriptionMode by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Добавить сервер") },
+        title = { Text(if (subscriptionMode) "Добавить подписку" else "Добавить сервер") },
         text = {
             Column {
                 OutlinedTextField(
                     value = text,
                     onValueChange = { text = it },
-                    label = { Text("vless:// ссылка") },
+                    label = { Text(if (subscriptionMode) "Ссылка на подписку" else "vless:// ссылка") },
                     modifier = Modifier.fillMaxWidth()
                 )
                 error?.let { Text(it) }
                 TextButton(onClick = onCreateManually) { Text("Или создать вручную") }
+                TextButton(onClick = { subscriptionMode = !subscriptionMode }) {
+                    Text(if (subscriptionMode) "Добавить одну ссылку vless://" else "Добавить по ссылке подписки")
+                }
             }
         },
         confirmButton = {
-            TextButton(onClick = { onImport(text) }) { Text("Импортировать") }
+            TextButton(onClick = {
+                if (subscriptionMode) onImportSubscription(text) else onImport(text)
+            }) { Text("Импортировать") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } }
     )

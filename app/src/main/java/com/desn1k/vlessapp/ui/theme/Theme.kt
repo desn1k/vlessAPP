@@ -6,6 +6,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import com.desn1k.vlessapp.prefs.ThemeMode
 
 private val Blue = Color(0xFF3D7DF6)
 private val BlueLight = Color(0xFFE8F0FE)
@@ -32,7 +33,12 @@ private val DarkColors = darkColorScheme(
 )
 
 @Composable
-fun VlessAppTheme(content: @Composable () -> Unit) {
-    val colors = if (isSystemInDarkTheme()) DarkColors else LightColors
+fun VlessAppTheme(themeMode: ThemeMode = ThemeMode.SYSTEM, content: @Composable () -> Unit) {
+    val useDark = when (themeMode) {
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
+    val colors = if (useDark) DarkColors else LightColors
     MaterialTheme(colorScheme = colors, content = content)
 }

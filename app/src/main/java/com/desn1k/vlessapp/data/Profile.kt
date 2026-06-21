@@ -34,5 +34,7 @@ data class Profile(
     val grpcServiceName: String = "",
     val createdAt: Long = System.currentTimeMillis(),
     val lastLatencyMs: Long = -1,
-    val lastCheckedAt: Long = 0
+    val lastCheckedAt: Long = 0,
+    val tag: String = "",                   // user-defined group, e.g. country or subscription name
+    val subscriptionUrl: String = ""        // set when imported from a subscription link
 ) : Parcelable

@@ -42,6 +42,7 @@ fun EditProfileScreen(
     var wsPath by remember { mutableStateOf("") }
     var wsHost by remember { mutableStateOf("") }
     var grpcServiceName by remember { mutableStateOf("") }
+    var tag by remember { mutableStateOf("") }
     var existingId by remember { mutableStateOf(0L) }
 
     LaunchedEffect(profileId) {
@@ -62,6 +63,7 @@ fun EditProfileScreen(
                 wsPath = p.wsPath
                 wsHost = p.wsHost
                 grpcServiceName = p.grpcServiceName
+                tag = p.tag
             }
         }
     }
@@ -87,6 +89,7 @@ fun EditProfileScreen(
             Field("WS path", wsPath) { wsPath = it }
             Field("WS host", wsHost) { wsHost = it }
             Field("gRPC serviceName", grpcServiceName) { grpcServiceName = it }
+            Field("Тег/группа", tag) { tag = it }
 
             Button(
                 onClick = {
@@ -106,7 +109,8 @@ fun EditProfileScreen(
                             shortId = shortId,
                             wsPath = wsPath,
                             wsHost = wsHost,
-                            grpcServiceName = grpcServiceName
+                            grpcServiceName = grpcServiceName,
+                            tag = tag
                         )
                     )
                     onDone()
