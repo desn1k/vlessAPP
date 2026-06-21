@@ -73,7 +73,12 @@ class MainActivity : ComponentActivity() {
         }
 
     private val qrScanLauncher = registerForActivityResult(ScanContract()) { result ->
-        result.contents?.takeIf { it.startsWith("vless://") }?.let { viewModel.importLink(it) }
+        val content = result.contents?.trim() ?: return@registerForActivityResult
+        if (content.startsWith("vless://", ignoreCase = true)) {
+            viewModel.importLink(content)
+        } else {
+            viewModel.reportImportError("QR-код не содержит ссылку vless://")
+        }
     }
 
     private val exportBackupLauncher =
@@ -102,7 +107,11 @@ class MainActivity : ComponentActivity() {
     }
 
     fun requestQrScan() {
-        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.CAMERA
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (granted) launchQrScanner() else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
     }
 
     fun requestExportBackup() {

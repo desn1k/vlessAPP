@@ -14,7 +14,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -25,9 +24,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.desn1k.vlessapp.BuildConfig
@@ -46,7 +42,6 @@ fun SettingsScreen(
     val subscriptions by viewModel.subscriptions.collectAsState()
     val subscriptionError by viewModel.subscriptionError.collectAsState()
     val backupMessage by viewModel.backupMessage.collectAsState()
-    var subscriptionUrl by remember { mutableStateOf("") }
 
     Scaffold(topBar = { TopAppBar(title = { Text("Настройки") }) }) { padding ->
         Column(modifier = Modifier.padding(padding).padding(12.dp)) {
@@ -97,37 +92,31 @@ fun SettingsScreen(
                 }
             }
 
-            Card(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Text("Подписки", style = MaterialTheme.typography.titleSmall)
-                    subscriptions.forEach { url ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(url, modifier = Modifier.padding(end = 8.dp))
-                            Row {
-                                TextButton(onClick = { viewModel.importSubscription(url) }) { Text("Обновить") }
-                                IconButton(onClick = { viewModel.removeSubscription(url) }) {
-                                    Icon(Icons.Filled.Delete, contentDescription = "Удалить подписку")
+            if (subscriptions.isNotEmpty()) {
+                Card(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("Подписки", style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            "Добавляются на главном экране",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        subscriptions.forEach { url ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(url, modifier = Modifier.padding(end = 8.dp))
+                                Row {
+                                    TextButton(onClick = { viewModel.importSubscription(url) }) { Text("Обновить") }
+                                    IconButton(onClick = { viewModel.removeSubscription(url) }) {
+                                        Icon(Icons.Filled.Delete, contentDescription = "Удалить подписку")
+                                    }
                                 }
                             }
                         }
+                        subscriptionError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                     }
-                    OutlinedTextField(
-                        value = subscriptionUrl,
-                        onValueChange = { subscriptionUrl = it },
-                        label = { Text("Ссылка на подписку") },
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                    )
-                    Button(
-                        onClick = {
-                            viewModel.importSubscription(subscriptionUrl)
-                            subscriptionUrl = ""
-                        },
-                        modifier = Modifier.padding(top = 8.dp)
-                    ) { Text("Добавить подписку") }
-                    subscriptionError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 }
             }
 

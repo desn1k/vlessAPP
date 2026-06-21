@@ -9,7 +9,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -30,9 +29,21 @@ fun TestsScreen(viewModel: MainViewModel) {
     val connection by viewModel.connectionState.collectAsState()
     val wifiState by viewModel.wifiTestState.collectAsState()
     val operatorState by viewModel.operatorTestState.collectAsState()
+    val profiles by viewModel.profiles.collectAsState()
+    val hasProfiles = profiles.isNotEmpty()
 
     Scaffold(topBar = { TopAppBar(title = { Text("Тесты") }) }) { padding ->
         LazyColumn(modifier = Modifier.padding(padding).padding(12.dp).fillMaxSize()) {
+            if (!hasProfiles) {
+                item {
+                    Card(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                        Text(
+                            "Добавьте профиль на главном экране, чтобы запускать проверки.",
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    }
+                }
+            }
             item { SectionTitle("Через VPN-туннель") }
             item {
                 Card(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
@@ -40,7 +51,7 @@ fun TestsScreen(viewModel: MainViewModel) {
                         Text("VPN статус: ${connection.status}")
                         Button(
                             onClick = { viewModel.runFullTest() },
-                            enabled = connection.status == ConnectionState.Status.CONNECTED && !report.running,
+                            enabled = hasProfiles && connection.status == ConnectionState.Status.CONNECTED && !report.running,
                             modifier = Modifier.padding(top = 8.dp)
                         ) {
                             Text(if (report.running) "Проверка…" else "Проверить сайты и пинги")
@@ -66,7 +77,7 @@ fun TestsScreen(viewModel: MainViewModel) {
             item {
                 Card(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
                     Column(modifier = Modifier.padding(12.dp)) {
-                        Button(onClick = { viewModel.runWifiTest() }, enabled = !wifiState.running) {
+                        Button(onClick = { viewModel.runWifiTest() }, enabled = hasProfiles && !wifiState.running) {
                             Text(if (wifiState.running) "Проверка…" else "Проверить через Wi-Fi")
                         }
                         if (wifiState.running) CircularProgressIndicator(modifier = Modifier.padding(top = 8.dp))
@@ -86,19 +97,22 @@ fun TestsScreen(viewModel: MainViewModel) {
 
             item { SectionTitle("По SIM-операторам") }
             item {
-                Button(
-                    onClick = { viewModel.loadSims(); viewModel.runOperatorTest() },
-                    enabled = !operatorState.running
-                ) {
-                    Text(if (operatorState.running) "Проверка…" else "Проверить все SIM")
-                }
-                if (operatorState.running) CircularProgressIndicator(modifier = Modifier.padding(top = 8.dp))
-                if (operatorState.noSimsFound) {
-                    Text("SIM-карты не найдены или нет разрешения READ_PHONE_STATE.")
+                Card(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Button(
+                            onClick = { viewModel.loadSims(); viewModel.runOperatorTest() },
+                            enabled = hasProfiles && !operatorState.running
+                        ) {
+                            Text(if (operatorState.running) "Проверка…" else "Проверить все SIM")
+                        }
+                        if (operatorState.running) CircularProgressIndicator(modifier = Modifier.padding(top = 8.dp))
+                        if (operatorState.noSimsFound) {
+                            Text("SIM-карты не найдены или нет разрешения READ_PHONE_STATE.", modifier = Modifier.padding(top = 8.dp))
+                        }
+                    }
                 }
             }
             items(operatorState.results) { result -> OperatorResultCard(result) }
-            item { Divider(modifier = Modifier.padding(vertical = 8.dp)) }
         }
     }
 }

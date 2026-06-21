@@ -154,6 +154,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      */
     var vpnPermissionRequester: ((Profile) -> Unit)? = null
 
+    fun reportImportError(message: String) {
+        _importError.value = message
+    }
+
     fun importLink(link: String) {
         viewModelScope.launch {
             try {
