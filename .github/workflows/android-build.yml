@@ -57,19 +57,26 @@ jobs:
           name: vlessapp-debug
           path: app/build/outputs/apk/debug/*.apk
 
+      - name: Read app version
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        id: app_version
+        run: |
+          VERSION_NAME=$(grep -m1 'versionName = ' app/build.gradle.kts | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+
       - name: Rename APK for release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: cp app/build/outputs/apk/debug/app-debug.apk vless-checker-latest.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk vless-checker-${{ steps.app_version.outputs.version_name }}.apk
 
-      # Publishes/updates a single rolling "latest" GitHub Release so the in-app
-      # updater (UpdateChecker) and users always have one stable download URL.
-      - name: Publish latest release
+      # Publishes a numbered GitHub Release tagged with the app's versionName, so the
+      # in-app updater (UpdateChecker) and users always see a real, incrementing version.
+      - name: Publish release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: latest
-          name: "Vless Checker (latest build)"
-          body: "Automatically built from the latest main branch commit (${{ github.sha }})."
-          files: vless-checker-latest.apk
+          tag_name: v${{ steps.app_version.outputs.version_name }}
+          name: "Vless Checker v${{ steps.app_version.outputs.version_name }}"
+          body: "Automatically built from main (${{ github.sha }})."
+          files: vless-checker-${{ steps.app_version.outputs.version_name }}.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

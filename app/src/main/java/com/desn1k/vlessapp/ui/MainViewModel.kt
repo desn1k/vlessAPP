@@ -7,15 +7,20 @@ import com.desn1k.vlessapp.BuildConfig
 import com.desn1k.vlessapp.VlessApp
 import com.desn1k.vlessapp.core.CoreManager
 import com.desn1k.vlessapp.data.Profile
+import com.desn1k.vlessapp.data.ProfileBackup
 import com.desn1k.vlessapp.data.ProfileRepository
+import com.desn1k.vlessapp.prefs.AppPreferences
+import com.desn1k.vlessapp.prefs.ThemeMode
 import com.desn1k.vlessapp.sim.MultiSimTester
 import com.desn1k.vlessapp.sim.OperatorTestResult
 import com.desn1k.vlessapp.sim.SimInfo
 import com.desn1k.vlessapp.sim.SimManager
+import com.desn1k.vlessapp.sim.WifiNetworkBinder
 import com.desn1k.vlessapp.test.ConnectivityTester
 import com.desn1k.vlessapp.update.ApkInstaller
 import com.desn1k.vlessapp.update.GitHubRelease
 import com.desn1k.vlessapp.update.UpdateChecker
+import com.desn1k.vlessapp.vless.SubscriptionImporter
 import com.desn1k.vlessapp.vless.VlessLink
 import com.desn1k.vlessapp.vless.XrayConfigFactory
 import com.desn1k.vlessapp.vpn.ConnectionState
@@ -50,6 +55,14 @@ data class OperatorTestState(
     val noSimsFound: Boolean = false
 )
 
+data class WifiTestState(
+    val running: Boolean = false,
+    val networkAcquired: Boolean? = null,
+    val serverPing: ConnectivityTester.PingResult? = null,
+    val sites: List<ConnectivityTester.SiteResult> = emptyList(),
+    val pings: List<ConnectivityTester.PingResult> = emptyList()
+)
+
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = ProfileRepository((application as VlessApp).database.profileDao())
@@ -77,11 +90,73 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _sims = MutableStateFlow<List<SimInfo>>(emptyList())
     val sims: StateFlow<List<SimInfo>> = _sims
 
+    private val _wifiTestState = MutableStateFlow(WifiTestState())
+    val wifiTestState: StateFlow<WifiTestState> = _wifiTestState
+
+    private val _themeMode = MutableStateFlow(AppPreferences.getThemeMode(application))
+    val themeMode: StateFlow<ThemeMode> = _themeMode
+
+    private val _subscriptions = MutableStateFlow(AppPreferences.getSubscriptions(application).toList())
+    val subscriptions: StateFlow<List<String>> = _subscriptions
+
+    private val _subscriptionError = MutableStateFlow<String?>(null)
+    val subscriptionError: StateFlow<String?> = _subscriptionError
+
+    private val _backupMessage = MutableStateFlow<String?>(null)
+    val backupMessage: StateFlow<String?> = _backupMessage
+
+    fun setThemeMode(mode: ThemeMode) {
+        AppPreferences.setThemeMode(getApplication(), mode)
+        _themeMode.value = mode
+    }
+
+    /** Fetches a subscription link, imports every vless:// entry it contains, and remembers the URL for later refresh. */
+    fun importSubscription(url: String) {
+        viewModelScope.launch {
+            try {
+                val imported = SubscriptionImporter.fetch(url)
+                if (imported.isEmpty()) {
+                    _subscriptionError.value = "Подписка не содержит ссылок vless://"
+                    return@launch
+                }
+                imported.forEach { repository.saveDeduped(it) }
+                AppPreferences.addSubscription(getApplication(), url)
+                _subscriptions.value = AppPreferences.getSubscriptions(getApplication()).toList()
+                _subscriptionError.value = null
+            } catch (t: Throwable) {
+                _subscriptionError.value = t.message ?: "Не удалось загрузить подписку"
+            }
+        }
+    }
+
+    fun removeSubscription(url: String) {
+        AppPreferences.removeSubscription(getApplication(), url)
+        _subscriptions.value = AppPreferences.getSubscriptions(getApplication()).toList()
+    }
+
+    suspend fun exportBackupAsync(): String = ProfileBackup.toJson(repository.getAllOnce())
+
+    fun importBackupJson(json: String) {
+        viewModelScope.launch {
+            try {
+                val imported = ProfileBackup.fromJson(json)
+                imported.forEach { repository.saveDeduped(it) }
+                _backupMessage.value = "Импортировано профилей: ${imported.size}"
+            } catch (t: Throwable) {
+                _backupMessage.value = "Не удалось импортировать: ${t.message}"
+            }
+        }
+    }
+
     /**
      * Set by MainActivity to route connection requests through VpnService.prepare() before
      * the tunnel is actually started (Android requires that prompt to come from an Activity).
      */
     var vpnPermissionRequester: ((Profile) -> Unit)? = null
+
+    fun reportImportError(message: String) {
+        _importError.value = message
+    }
 
     fun importLink(link: String) {
         viewModelScope.launch {
@@ -161,6 +236,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val profile = _selectedProfileId.value?.let { repository.getById(it) }
             val results = MultiSimTester.runForAllSims(app, profile)
             _operatorTestState.value = OperatorTestState(running = false, results = results)
+        }
+    }
+
+    /** Runs the same reachability checks pinned explicitly to the active Wi-Fi network. */
+    fun runWifiTest() {
+        viewModelScope.launch {
+            _wifiTestState.value = WifiTestState(running = true)
+            val app: android.app.Application = getApplication()
+            val network = WifiNetworkBinder.requestWifiNetwork(app)
+            if (network == null) {
+                _wifiTestState.value = WifiTestState(running = false, networkAcquired = false)
+                return@launch
+            }
+            val profile = _selectedProfileId.value?.let { repository.getById(it) }
+            val serverPing = profile?.let { ConnectivityTester.tcpPing(it.address, it.port, network) }
+            val sites = ConnectivityTester.checkSites(network = network)
+            val pings = ConnectivityTester.pingAll(network = network)
+            _wifiTestState.value = WifiTestState(
+                running = false,
+                networkAcquired = true,
+                serverPing = serverPing,
+                sites = sites,
+                pings = pings
+            )
         }
     }
 
