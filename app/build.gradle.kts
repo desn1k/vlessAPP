@@ -13,8 +13,21 @@ android {
         applicationId = "com.desn1k.vlessapp"
         minSdk = 24
         targetSdk = 34
-        versionCode = 3
-        versionName = "0.3.0"
+        versionCode = 4
+        versionName = "0.4.0"
+    }
+
+    // Committed keystore so every CI build (and every dev machine) signs debug APKs with the
+    // same certificate. Otherwise each environment's auto-generated ~/.android/debug.keystore
+    // differs, and Android refuses to install an update over an existing install signed with
+    // a different key ("conflicts with an existing package").
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
     }
 
     buildTypes {

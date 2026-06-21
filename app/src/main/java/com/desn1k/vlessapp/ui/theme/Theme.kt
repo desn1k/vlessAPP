@@ -1,11 +1,15 @@
 package com.desn1k.vlessapp.ui.theme
 
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import com.desn1k.vlessapp.prefs.ThemeMode
 
 private val Blue = Color(0xFF3D7DF6)
@@ -39,6 +43,13 @@ fun VlessAppTheme(themeMode: ThemeMode = ThemeMode.SYSTEM, content: @Composable 
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
     }
-    val colors = if (useDark) DarkColors else LightColors
+    // Material You: derive the palette from the device wallpaper on Android 12+, falling back
+    // to the fixed brand palette on older devices where dynamic color isn't available.
+    val context = LocalContext.current
+    val colors = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        if (useDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+    } else {
+        if (useDark) DarkColors else LightColors
+    }
     MaterialTheme(colorScheme = colors, content = content)
 }
