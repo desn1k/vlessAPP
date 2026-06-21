@@ -1,0 +1,75 @@
+name: Android build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK
+        run: sdkmanager --install "ndk;26.1.10909125"
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: gomobile-${{ runner.os }}-${{ hashFiles('scripts/build_libv2ray.sh') }}
+
+      - name: Build libv2ray.aar (gomobile bind against Xray-core)
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/26.1.10909125
+        run: ./scripts/build_libv2ray.sh
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: vlessapp-debug
+          path: app/build/outputs/apk/debug/*.apk
+
+      - name: Rename APK for release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: cp app/build/outputs/apk/debug/app-debug.apk vless-checker-latest.apk
+
+      # Publishes/updates a single rolling "latest" GitHub Release so the in-app
+      # updater (UpdateChecker) and users always have one stable download URL.
+      - name: Publish latest release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "Vless Checker (latest build)"
+          body: "Automatically built from the latest main branch commit (${{ github.sha }})."
+          files: vless-checker-latest.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
